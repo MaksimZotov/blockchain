@@ -1,21 +1,23 @@
-package com.maksimzotov
+package com.maksimzotov.services.impl
 
-object NodesInteractor {
-    val nodes = Config.nodesIds.map { id ->
-        Node(
-            id = id,
-            changeNonce = when (id) {
-                Config.FIRST_NODE_ID -> Config.CHANGE_NONCE_RANDOM
-                Config.SECOND_NODE_ID -> Config.CHANGE_NONCE_INCREMENT
-                Config.THIRD_NODE_ID -> Config.CHANGE_NONCE_DECREMENT
-                else -> Config.CHANGE_NONCE_RANDOM
-            }
-        )
-    }
+import com.maksimzotov.checkHash
+import com.maksimzotov.getInitialIndex
+import com.maksimzotov.models.Block
+import com.maksimzotov.models.NeighbourNode
+import com.maksimzotov.services.ClientService
+import com.maksimzotov.services.NeighbourNodesService
 
-    fun checkAddedBlock(id: String, block: Block): Boolean {
-        val responses = getNeighboursNodes(id).map { node ->
-            node.checkAddedBlockFromAnotherNode(block)
+class NeighbourNodesServiceImpl(
+    private val clientService: ClientService,
+    private val neighbourNodes: List<NeighbourNode>
+) : NeighbourNodesService {
+
+    override suspend fun checkAddedBlock(block: Block): Boolean {
+        val responses = neighbourNodes.map { node ->
+            clientService.checkAddedBlock(
+                fullAddress = node.fullAddress,
+                block = block
+            )
         }
         val responsesWithCompetitorBlocks = responses.filter { response ->
             if (response.checked) {
@@ -34,37 +36,34 @@ object NodesInteractor {
         return true
     }
 
-    fun getCheckedBlocksWithMaxLength(id: String, currentBlocks: List<Block>) =
+    override suspend fun getCheckedBlocksWithMaxLength(blocks: List<Block>) =
         getCheckedBlocksWithMaxLength(
             checkedBlocksInNodes = getCheckedBlocksInNodes(
-                blocksInNodes = getBlocksInNodes(id)
+                blocksInNodes = getBlocksInNodes()
             ),
-            currentBlocks = currentBlocks
+            blocks = blocks
         )
 
     private fun getCheckedBlocksWithMaxLength(
         checkedBlocksInNodes: List<List<Block>>,
-        currentBlocks: List<Block>
+        blocks: List<Block>
     ) = checkedBlocksInNodes
-        .filter { blocks ->
-            blocks.size > currentBlocks.size
-        }.maxByOrNull { blocks ->
-            blocks.size
-        }.takeIf { blocks ->
-            !blocks.isNullOrEmpty()
-        } ?: currentBlocks
+        .filter { blocksInNode ->
+            blocksInNode.size > blocks.size
+        }.maxByOrNull { blocksInNode ->
+            blocksInNode.size
+        }.takeIf { blocksInNode ->
+            !blocksInNode.isNullOrEmpty()
+        } ?: blocks
 
     private fun getCheckedBlocksInNodes(blocksInNodes: List<List<Block>>) = blocksInNodes
         .filter(::checkBlocksHashes)
 
-    private fun getBlocksInNodes(id: String) = getNeighboursNodes(id)
+    private suspend fun getBlocksInNodes() = neighbourNodes
         .map { node ->
-            node.getBlocks()
-        }
-
-    private fun getNeighboursNodes(id: String) = nodes
-        .filter { node ->
-            node.id != id
+            clientService.getBlocks(
+                fullAddress = node.fullAddress
+            )
         }
 
     private fun checkBlocksHashes(blocks: List<Block>): Boolean {

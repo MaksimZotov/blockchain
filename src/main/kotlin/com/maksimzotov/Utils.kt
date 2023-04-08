@@ -1,5 +1,6 @@
 package com.maksimzotov
 
+import com.maksimzotov.models.Block
 import kotlin.random.Random
 
 fun getRandomString(length: Int): String {
@@ -26,7 +27,7 @@ fun checkHash(currentBlock: Block, previousBlock: Block?): Boolean {
 
 fun getInitialIndex() = 0
 
-fun getInitialHash() = with(Config) {
+fun getInitialHash() = with(Configs) {
     "0".repeat(HASH_LENGTH - HASH_POSTFIX.length) + HASH_POSTFIX
 }
 
@@ -40,7 +41,7 @@ fun generateNextBlock(
 
     var nonce = Random.nextInt()
     var hash = getHash(index, previousHash, data, nonce)
-    while (!hash.endsWith(Config.HASH_POSTFIX)) {
+    while (!hash.endsWith(Configs.HASH_POSTFIX)) {
         nonce = changeNonce(nonce)
         hash = getHash(index, previousHash, data, nonce)
     }

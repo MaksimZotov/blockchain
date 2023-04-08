@@ -8,7 +8,7 @@ fun Int.toAbsBinary(): String =
 
 fun String.toHash(): String {
     return MessageDigest
-        .getInstance(Config.HASH_ALGORITHM)
+        .getInstance(Configs.HASH_ALGORITHM)
         .digest(this.toByteArray())
         .fold("") { str, it -> str + "%02x".format(it) }
 }

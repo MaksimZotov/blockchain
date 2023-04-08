@@ -1,5 +1,8 @@
-package com.maksimzotov
+package com.maksimzotov.models
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class CheckAddedBlockResponse(
     val blocks: List<Block>?
 ) {
