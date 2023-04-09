@@ -45,38 +45,10 @@ class NodeServiceImpl(
                 continue
             }
 
-            val previousBlock = blocks.lastOrNull()
-            val data = getRandomString(Configs.DATA_LENGTH)
-
-            val index = (previousBlock?.index ?: INITIAL_INDEX) + 1
-            val previousHash = previousBlock?.hash ?: getInitialHash()
-
-            var nonce = changeNonceLambda(previousBlock?.nonce ?: Random.nextInt())
-            var hash: String
-
-            var generatedBlock: Block? = null
-            while (true) {
-                if (generationStopped) {
-                    generationStopped = false
-                    break
-                }
-                nonce = changeNonceLambda(nonce)
-                hash = getHash(index, previousHash, data, nonce)
-                if (hash.endsWith(Configs.HASH_POSTFIX)) {
-                    generatedBlock = Block(
-                        index = index,
-                        previousHash = previousHash,
-                        hash = hash,
-                        data = data,
-                        nonce = nonce,
-                        nodeFullAddress = node.fullAddress
-                    )
-                    break
-                }
-            }
-            if (generatedBlock == null) {
-                continue
-            }
+            val generatedBlock = generateNextBlock(
+                data = getRandomString(Configs.DATA_LENGTH),
+                previousBlock = blocks.lastOrNull()
+            ) ?: continue
 
             val goToNextIteration = mutex.withLock {
                 if (blocks.checkBlockIndexIsLargest(generatedBlock)) {
@@ -122,6 +94,36 @@ class NodeServiceImpl(
 
     override suspend fun getBlocks() = mutex.withLock {
         blocks
+    }
+
+    private fun generateNextBlock(
+        data: String,
+        previousBlock: Block? = null
+    ): Block? {
+        val index = (previousBlock?.index ?: INITIAL_INDEX) + 1
+        val previousHash = previousBlock?.hash ?: getInitialHash()
+
+        var nonce = changeNonceLambda(previousBlock?.nonce ?: Random.nextInt())
+        var hash: String
+
+        while (true) {
+            if (generationStopped) {
+                generationStopped = false
+                return null
+            }
+            nonce = changeNonceLambda(nonce)
+            hash = getHash(index, previousHash, data, nonce)
+            if (hash.endsWith(Configs.HASH_POSTFIX)) {
+                return Block(
+                    index = index,
+                    previousHash = previousHash,
+                    hash = hash,
+                    data = data,
+                    nonce = nonce,
+                    nodeFullAddress = node.fullAddress
+                )
+            }
+        }
     }
 
     private suspend fun logCurrentState() {
