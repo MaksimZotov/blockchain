@@ -10,5 +10,6 @@ data class Block(
     val previousHash: String,
     val hash: String,
     val data: String,
-    val nonce: Int
+    val nonce: Int,
+    val nodeFullAddress: String
 )

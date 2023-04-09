@@ -5,4 +5,6 @@ data class Node(
     val port: Int,
     val changeNonce: String,
     val generateFirstBlock: Boolean
-)
+) {
+    val fullAddress get() = "$ip:$port"
+}

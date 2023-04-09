@@ -2,12 +2,10 @@ package com.maksimzotov.services.impl
 
 import com.maksimzotov.*
 import com.maksimzotov.models.Block
-import com.maksimzotov.models.CheckAddedBlockResponse
 import com.maksimzotov.models.Node
 import com.maksimzotov.services.NeighbourNodesService
 import com.maksimzotov.services.NodeService
 import io.ktor.server.application.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.random.Random
@@ -17,6 +15,10 @@ class NodeServiceImpl(
     private val neighbourNodesService: NeighbourNodesService,
     private val node: Node
 ) : NodeService {
+
+    private companion object {
+        const val INITIAL_INDEX = 0
+    }
 
     private var blocks = mutableListOf<Block>()
 
@@ -31,14 +33,12 @@ class NodeServiceImpl(
 
     private val mutex = Mutex()
 
+    @Volatile
+    private var enableToGenerate = node.generateFirstBlock
+
     override suspend fun start() {
         while (true) {
-            try {
-                mutex.withLock {
-                    blocks = neighbourNodesService.getCheckedBlocksWithMaxLength(blocks).toMutableList()
-                }
-            } catch (_: Exception) {
-                delay(Configs.FAILED_REQUEST_DELAY)
+            if (!enableToGenerate) {
                 continue
             }
 
@@ -49,41 +49,52 @@ class NodeServiceImpl(
             )
 
             mutex.withLock {
-                if (generatedBlock.index > (blocks.lastOrNull()?.index ?: Configs.INITIAL_INDEX)) {
+                if (blocks.checkBlockIndexIsLargest(generatedBlock)) {
                     blocks.add(generatedBlock)
                 }
             }
 
             try {
-                neighbourNodesService.checkAddedBlock(generatedBlock)
-            } catch (_: Exception) { }
+                neighbourNodesService.notifyAboutAddedBlock(generatedBlock)
+            } catch (_: Exception) {
+                mutex.withLock {
+                    blocks.remove(generatedBlock)
+                }
+            }
 
-            printCurrentState(generatedBlock.index)
+            printCurrentState()
         }
     }
 
-    override suspend fun checkAddedBlock(block: Block) = mutex.withLock {
-        val checked = checkHash(currentBlock = block, previousBlock = blocks.lastOrNull())
+    override suspend fun onBlockAdded(block: Block): Unit = mutex.withLock {
+        val checked = checkHash(
+            currentBlock = block,
+            previousBlock = blocks.lastOrNull()
+        )
         if (checked) {
             blocks.add(block)
+        } else if (blocks.checkBlockIndexIsLargest(block)) {
+            try {
+                blocks = neighbourNodesService.getCheckedBlocksWithMaxLength(blocks).toMutableList()
+            } catch (_: Exception) { }
         }
-        CheckAddedBlockResponse(
-            blocks = if (checked) null else blocks
-        )
+        enableToGenerate = true
     }
 
     override suspend fun getBlocks() = mutex.withLock {
         blocks
     }
 
-    private fun printCurrentState(index: Int) {
+    private suspend fun printCurrentState() {
         val stringBuilder = StringBuilder(
             with(node) {
-                "\n\nНода:\nАдрес = $ip:$port\nГлавная = $generateFirstBlock\nИндекс = $index\n\nБлоки:\n"
+                "\n\nНода:\nАдрес = $ip:$port\nГлавная = $generateFirstBlock\n\n\nБлоки:\n"
             }
         )
-        for (block in blocks) {
-            stringBuilder.append("Блок ${block.index}: ${block.hash}\n")
+        mutex.withLock {
+            for (block in blocks) {
+                stringBuilder.append("Блок от ${block.nodeFullAddress} c i = ${block.index}: ${block.hash}\n")
+            }
         }
         stringBuilder.append("\n")
         application.log.info(stringBuilder.toString())
@@ -94,8 +105,8 @@ class NodeServiceImpl(
         previousBlock: Block? = null,
         changeNonce: (Int) -> Int
     ): Block {
-        val index = (previousBlock?.index ?: Configs.INITIAL_INDEX) + 1
-        val previousHash = previousBlock?.hash ?: Configs.INITIAL_HASH
+        val index = (previousBlock?.index ?: INITIAL_INDEX) + 1
+        val previousHash = previousBlock?.hash ?: getInitialHash()
 
         var nonce = Random.nextInt()
         var hash = getHash(index, previousHash, data, nonce)
@@ -109,7 +120,11 @@ class NodeServiceImpl(
             previousHash = previousHash,
             hash = hash,
             data = data,
-            nonce = nonce
+            nonce = nonce,
+            nodeFullAddress = node.fullAddress
         )
     }
+
+    private fun List<Block>.checkBlockIndexIsLargest(block: Block) =
+        block.index > (this.lastOrNull()?.index ?: INITIAL_INDEX)
 }

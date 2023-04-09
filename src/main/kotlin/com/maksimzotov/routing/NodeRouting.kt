@@ -16,8 +16,8 @@ fun Application.configureNodeRouting() {
         get(Configs.REQUEST_GET_BLOCKS) {
             call.respond(nodeService.getBlocks())
         }
-        post(Configs.REQUEST_CHECK_ADDED_BLOCK) {
-            call.respond(nodeService.checkAddedBlock(call.receive()))
+        post(Configs.REQUEST_NOTIFY_ABOUT_ADDED_BLOCK) {
+            call.respond(nodeService.onBlockAdded(call.receive()))
         }
     }
 }

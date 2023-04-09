@@ -1,6 +1,5 @@
 package com.maksimzotov.services.impl
 
-import com.maksimzotov.Configs
 import com.maksimzotov.checkHash
 import com.maksimzotov.models.Block
 import com.maksimzotov.models.NeighbourNode
@@ -12,29 +11,13 @@ class NeighbourNodesServiceImpl(
     private val neighbourNodes: List<NeighbourNode>
 ) : NeighbourNodesService {
 
-    override suspend fun checkAddedBlock(block: Block): Boolean {
-        val responses = neighbourNodes.map { node ->
-            clientService.checkAddedBlock(
+    override suspend fun notifyAboutAddedBlock(block: Block) =
+        neighbourNodes.forEach { node ->
+            clientService.notifyAboutAddedBlock(
                 fullAddress = node.fullAddress,
                 block = block
             )
         }
-        val responsesWithCompetitorBlocks = responses.filter { response ->
-            if (response.checked) {
-                return@filter false
-            }
-            val indexIsLess = (response.lastBlock?.index ?: Configs.INITIAL_INDEX) < block.index
-            if (indexIsLess) {
-                return@filter false
-            }
-            val blocks = response.blocks ?: return@filter false
-            return@filter !checkBlocksHashes(blocks)
-        }
-        if (responsesWithCompetitorBlocks.isNotEmpty()) {
-            return false
-        }
-        return true
-    }
 
     override suspend fun getCheckedBlocksWithMaxLength(blocks: List<Block>) =
         getCheckedBlocksWithMaxLength(
@@ -56,15 +39,17 @@ class NeighbourNodesServiceImpl(
             !blocksInNode.isNullOrEmpty()
         } ?: blocks
 
-    private fun getCheckedBlocksInNodes(blocksInNodes: List<List<Block>>) = blocksInNodes
-        .filter(::checkBlocksHashes)
+    private fun getCheckedBlocksInNodes(blocksInNodes: List<List<Block>>) =
+        blocksInNodes
+            .filter(::checkBlocksHashes)
 
-    private suspend fun getBlocksInNodes() = neighbourNodes
-        .map { node ->
-            clientService.getBlocks(
-                fullAddress = node.fullAddress
-            )
-        }
+    private suspend fun getBlocksInNodes() =
+        neighbourNodes
+            .map { node ->
+                clientService.getBlocks(
+                    fullAddress = node.fullAddress
+                )
+            }
 
     private fun checkBlocksHashes(blocks: List<Block>): Boolean {
         var previousBlock: Block? = null

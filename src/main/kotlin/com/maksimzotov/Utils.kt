@@ -10,7 +10,7 @@ fun getRandomString(length: Int): String {
 }
 
 fun checkHash(currentBlock: Block, previousBlock: Block?): Boolean {
-    if (previousBlock == null) {
+    if (previousBlock == null || currentBlock.index == 1) {
         return true
     }
     return getHash(
@@ -23,3 +23,7 @@ fun checkHash(currentBlock: Block, previousBlock: Block?): Boolean {
 
 fun getHash(index: Int, previousHash: String, data: String, nonce: Int) =
     "$index$previousHash$data${nonce.toAbsBinary()}".toHash()
+
+fun getInitialHash() = with(Configs) {
+    "0".repeat(HASH_LENGTH - HASH_POSTFIX.length) + HASH_POSTFIX
+}
