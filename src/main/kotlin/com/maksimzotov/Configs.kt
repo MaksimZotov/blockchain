@@ -10,4 +10,7 @@ object Configs {
 
     const val REQUEST_GET_BLOCKS = "/blocks"
     const val REQUEST_CHECK_ADDED_BLOCK = "/check_added_block"
+
+    const val INITIAL_INDEX = 0
+    val INITIAL_HASH = "0".repeat(HASH_LENGTH - HASH_POSTFIX.length) + HASH_POSTFIX
 }

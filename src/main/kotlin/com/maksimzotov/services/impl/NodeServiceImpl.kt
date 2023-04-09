@@ -19,7 +19,6 @@ class NodeServiceImpl(
 ) : NodeService {
 
     private var blocks = mutableListOf<Block>()
-    private val generatedBlocks = mutableListOf<Block>()
 
     private val changeNonceLambda: (Int) -> Int = { nonce ->
         when (node.changeNonce) {
@@ -34,8 +33,10 @@ class NodeServiceImpl(
 
     override suspend fun start() {
         while (true) {
-            blocks = try {
-                neighbourNodesService.getCheckedBlocksWithMaxLength(blocks).toMutableList()
+            try {
+                mutex.withLock {
+                    blocks = neighbourNodesService.getCheckedBlocksWithMaxLength(blocks).toMutableList()
+                }
             } catch (_: Exception) {
                 delay(Configs.FAILED_REQUEST_DELAY)
                 continue
@@ -48,34 +49,26 @@ class NodeServiceImpl(
             )
 
             mutex.withLock {
-                blocks.add(generatedBlock)
-                generatedBlocks.add(generatedBlock)
-
-                val checked = try {
-                    neighbourNodesService.checkAddedBlock(generatedBlock)
-                } catch (_: Exception) {
-                    blocks.removeLast()
-                    generatedBlocks.removeLast()
-                    return@withLock
-                }
-
-                if (!checked) {
-                    blocks.removeLast()
-                    generatedBlocks.removeLast()
-                } else {
-                    printBlocks()
+                if (generatedBlock.index > (blocks.lastOrNull()?.index ?: Configs.INITIAL_INDEX)) {
+                    blocks.add(generatedBlock)
                 }
             }
+
+            try {
+                neighbourNodesService.checkAddedBlock(generatedBlock)
+            } catch (_: Exception) { }
+
+            printCurrentState(generatedBlock.index)
         }
     }
 
     override suspend fun checkAddedBlock(block: Block) = mutex.withLock {
+        val checked = checkHash(currentBlock = block, previousBlock = blocks.lastOrNull())
+        if (checked) {
+            blocks.add(block)
+        }
         CheckAddedBlockResponse(
-            blocks =
-                if (checkHash(currentBlock = block, previousBlock = blocks.lastOrNull()))
-                    null
-                else
-                    blocks
+            blocks = if (checked) null else blocks
         )
     }
 
@@ -83,32 +76,40 @@ class NodeServiceImpl(
         blocks
     }
 
-    private fun printBlocks() {
-        val stringBuilder = StringBuilder()
-        with(stringBuilder) {
-            append("\n\nСгенерированные нодой блоки:\n")
-            append(convertGeneratedBlocksToString())
-            append("\n")
-            append("Все блоки:\n")
-            append(convertBlocksToString())
-            append("\n\n")
+    private fun printCurrentState(index: Int) {
+        val stringBuilder = StringBuilder(
+            with(node) {
+                "\n\nНода:\nАдрес = $ip:$port\nГлавная = $generateFirstBlock\nИндекс = $index\n\nБлоки:\n"
+            }
+        )
+        for (block in blocks) {
+            stringBuilder.append("Блок ${block.index}: ${block.hash}\n")
         }
+        stringBuilder.append("\n")
         application.log.info(stringBuilder.toString())
     }
 
-    private fun convertBlocksToString() =
-        convertBlocksToString(blocks)
+    private fun generateNextBlock(
+        data: String,
+        previousBlock: Block? = null,
+        changeNonce: (Int) -> Int
+    ): Block {
+        val index = (previousBlock?.index ?: Configs.INITIAL_INDEX) + 1
+        val previousHash = previousBlock?.hash ?: Configs.INITIAL_HASH
 
-    private fun convertGeneratedBlocksToString() =
-        convertBlocksToString(generatedBlocks)
-
-    private fun convertBlocksToString(blocks: List<Block>): String {
-        val stringBuilder = StringBuilder(
-            with(node) { "$ip:$port $generateFirstBlock\n" }
-        )
-        for (block in blocks) {
-            stringBuilder.append("$block\n")
+        var nonce = Random.nextInt()
+        var hash = getHash(index, previousHash, data, nonce)
+        while (!hash.endsWith(Configs.HASH_POSTFIX)) {
+            nonce = changeNonce(nonce)
+            hash = getHash(index, previousHash, data, nonce)
         }
-        return stringBuilder.toString()
+
+        return Block(
+            index = index,
+            previousHash = previousHash,
+            hash = hash,
+            data = data,
+            nonce = nonce
+        )
     }
 }

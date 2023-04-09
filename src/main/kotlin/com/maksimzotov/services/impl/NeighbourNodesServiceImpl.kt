@@ -1,7 +1,7 @@
 package com.maksimzotov.services.impl
 
+import com.maksimzotov.Configs
 import com.maksimzotov.checkHash
-import com.maksimzotov.getInitialIndex
 import com.maksimzotov.models.Block
 import com.maksimzotov.models.NeighbourNode
 import com.maksimzotov.services.ClientService
@@ -23,7 +23,7 @@ class NeighbourNodesServiceImpl(
             if (response.checked) {
                 return@filter false
             }
-            val indexIsLess = (response.lastBlock?.index ?: getInitialIndex()) < block.index
+            val indexIsLess = (response.lastBlock?.index ?: Configs.INITIAL_INDEX) < block.index
             if (indexIsLess) {
                 return@filter false
             }
