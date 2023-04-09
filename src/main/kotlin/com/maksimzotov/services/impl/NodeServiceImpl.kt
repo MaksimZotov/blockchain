@@ -48,10 +48,16 @@ class NodeServiceImpl(
                 changeNonce = changeNonceLambda
             )
 
-            mutex.withLock {
+            val goToNextIteration = mutex.withLock {
                 if (blocks.checkBlockIndexIsLargest(generatedBlock)) {
                     blocks.add(generatedBlock)
+                    false
+                } else {
+                    true
                 }
+            }
+            if (goToNextIteration) {
+                continue
             }
 
             try {
@@ -74,6 +80,7 @@ class NodeServiceImpl(
         if (checked) {
             blocks.add(block)
         } else if (blocks.checkBlockIndexIsLargest(block)) {
+            application.log.info("Обновление всех блоков")
             try {
                 blocks = neighbourNodesService.getCheckedBlocksWithMaxLength(blocks).toMutableList()
             } catch (_: Exception) { }
