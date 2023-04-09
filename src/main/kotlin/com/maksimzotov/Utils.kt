@@ -1,6 +1,6 @@
 package com.maksimzotov
 
-import kotlin.random.Random
+import com.maksimzotov.models.Block
 
 fun getRandomString(length: Int): String {
     val allowedChars = ('A'..'Z') + ('a'..'z') + ('0'..'9')
@@ -9,11 +9,8 @@ fun getRandomString(length: Int): String {
         .joinToString("")
 }
 
-fun getHash(index: Int, previousHash: String, data: String, nonce: Int) =
-    "$index$previousHash$data${nonce.toAbsBinary()}".toHash()
-
 fun checkHash(currentBlock: Block, previousBlock: Block?): Boolean {
-    if (previousBlock == null) {
+    if (previousBlock == null || currentBlock.index == 1) {
         return true
     }
     return getHash(
@@ -24,32 +21,9 @@ fun checkHash(currentBlock: Block, previousBlock: Block?): Boolean {
     ) == currentBlock.hash
 }
 
-fun getInitialIndex() = 0
+fun getHash(index: Int, previousHash: String, data: String, nonce: Int) =
+    "$index$previousHash$data${nonce.toAbsBinary()}".toHash()
 
-fun getInitialHash() = with(Config) {
+fun getInitialHash() = with(Configs) {
     "0".repeat(HASH_LENGTH - HASH_POSTFIX.length) + HASH_POSTFIX
-}
-
-fun generateNextBlock(
-    data: String,
-    previousBlock: Block? = null,
-    changeNonce: (Int) -> Int
-): Block {
-    val index = (previousBlock?.index ?: getInitialIndex()) + 1
-    val previousHash = previousBlock?.hash ?: getInitialHash()
-
-    var nonce = Random.nextInt()
-    var hash = getHash(index, previousHash, data, nonce)
-    while (!hash.endsWith(Config.HASH_POSTFIX)) {
-        nonce = changeNonce(nonce)
-        hash = getHash(index, previousHash, data, nonce)
-    }
-
-    return Block(
-        index = index,
-        previousHash = previousHash,
-        hash = hash,
-        data = data,
-        nonce = nonce
-    )
 }
