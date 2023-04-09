@@ -34,19 +34,49 @@ class NodeServiceImpl(
     private val mutex = Mutex()
 
     @Volatile
-    private var enableToGenerate = node.generateFirstBlock
+    private var generationEnabled = node.generateFirstBlock
+
+    @Volatile
+    private var generationStopped = false
 
     override suspend fun start() {
         while (true) {
-            if (!enableToGenerate) {
+            if (!generationEnabled) {
                 continue
             }
 
-            val generatedBlock = generateNextBlock(
-                data = getRandomString(Configs.DATA_LENGTH),
-                previousBlock = blocks.lastOrNull(),
-                changeNonce = changeNonceLambda
-            )
+            val previousBlock = blocks.lastOrNull()
+            val data = getRandomString(Configs.DATA_LENGTH)
+
+            val index = (previousBlock?.index ?: INITIAL_INDEX) + 1
+            val previousHash = previousBlock?.hash ?: getInitialHash()
+
+            var nonce = changeNonceLambda(previousBlock?.nonce ?: Random.nextInt())
+            var hash: String
+
+            var generatedBlock: Block? = null
+            while (true) {
+                if (generationStopped) {
+                    generationStopped = false
+                    break
+                }
+                nonce = changeNonceLambda(nonce)
+                hash = getHash(index, previousHash, data, nonce)
+                if (hash.endsWith(Configs.HASH_POSTFIX)) {
+                    generatedBlock = Block(
+                        index = index,
+                        previousHash = previousHash,
+                        hash = hash,
+                        data = data,
+                        nonce = nonce,
+                        nodeFullAddress = node.fullAddress
+                    )
+                    break
+                }
+            }
+            if (generatedBlock == null) {
+                continue
+            }
 
             val goToNextIteration = mutex.withLock {
                 if (blocks.checkBlockIndexIsLargest(generatedBlock)) {
@@ -68,7 +98,7 @@ class NodeServiceImpl(
                 }
             }
 
-            printCurrentState()
+            logCurrentState()
         }
     }
 
@@ -79,20 +109,22 @@ class NodeServiceImpl(
         )
         if (checked) {
             blocks.add(block)
+            generationStopped = true
         } else if (blocks.checkBlockIndexIsLargest(block)) {
             application.log.info("Обновление всех блоков")
             try {
                 blocks = neighbourNodesService.getCheckedBlocksWithMaxLength(blocks).toMutableList()
+                generationStopped = true
             } catch (_: Exception) { }
         }
-        enableToGenerate = true
+        generationEnabled = true
     }
 
     override suspend fun getBlocks() = mutex.withLock {
         blocks
     }
 
-    private suspend fun printCurrentState() {
+    private suspend fun logCurrentState() {
         val stringBuilder = StringBuilder(
             with(node) {
                 "\n\nНода:\nАдрес = $ip:$port\nГлавная = $generateFirstBlock\n\n\nБлоки:\n"
@@ -105,31 +137,6 @@ class NodeServiceImpl(
         }
         stringBuilder.append("\n")
         application.log.info(stringBuilder.toString())
-    }
-
-    private fun generateNextBlock(
-        data: String,
-        previousBlock: Block? = null,
-        changeNonce: (Int) -> Int
-    ): Block {
-        val index = (previousBlock?.index ?: INITIAL_INDEX) + 1
-        val previousHash = previousBlock?.hash ?: getInitialHash()
-
-        var nonce = Random.nextInt()
-        var hash = getHash(index, previousHash, data, nonce)
-        while (!hash.endsWith(Configs.HASH_POSTFIX)) {
-            nonce = changeNonce(nonce)
-            hash = getHash(index, previousHash, data, nonce)
-        }
-
-        return Block(
-            index = index,
-            previousHash = previousHash,
-            hash = hash,
-            data = data,
-            nonce = nonce,
-            nodeFullAddress = node.fullAddress
-        )
     }
 
     private fun List<Block>.checkBlockIndexIsLargest(block: Block) =
