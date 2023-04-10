@@ -1,24 +1,17 @@
 package com.maksimzotov
 
+import com.maksimzotov.di.getKoinProjectModule
 import com.maksimzotov.models.NeighbourNode
 import com.maksimzotov.models.Node
 import com.maksimzotov.routing.configureNodeRouting
-import com.maksimzotov.services.ClientService
-import com.maksimzotov.services.NeighbourNodesService
 import com.maksimzotov.services.NodeService
-import com.maksimzotov.services.impl.ClientServiceImpl
-import com.maksimzotov.services.impl.NeighbourNodesServiceImpl
-import com.maksimzotov.services.impl.NodeServiceImpl
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.contentnegotiation.*
 import kotlinx.cli.*
 import kotlinx.coroutines.launch
-import org.koin.dsl.module
 import org.koin.ktor.ext.inject
 import org.koin.ktor.plugin.Koin
 
@@ -72,40 +65,17 @@ fun main(args: Array<String>) {
         port = node.port,
         host = node.ip,
     ) {
-
-        val projectModule = module {
-            single<NodeService> {
-                NodeServiceImpl(
-                    application = this@embeddedServer,
-                    neighbourNodesService = get(),
-                    node= node
-                )
-            }
-            single<NeighbourNodesService> {
-                NeighbourNodesServiceImpl(
-                    clientService = get(),
+        install(Koin) {
+            modules(
+                getKoinProjectModule(
+                    node = node,
                     neighbourNodes = neighbourNodes
                 )
-            }
-            single<ClientService> {
-                ClientServiceImpl(
-                    httpClient = HttpClient(CIO) {
-                        install(ContentNegotiation) {
-                            json()
-                        }
-                    }
-                )
-            }
+            )
         }
-
-        install(io.ktor.server.plugins.contentnegotiation.ContentNegotiation) {
+        install(ContentNegotiation) {
             json()
         }
-
-        install(Koin) {
-            modules(projectModule)
-        }
-
         configureNodeRouting()
 
         val nodeService by inject<NodeService>()

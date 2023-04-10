@@ -9,9 +9,11 @@ fun getRandomString(length: Int): String {
         .joinToString("")
 }
 
-fun checkHash(currentBlock: Block, previousBlock: Block?): Boolean {
-    if (previousBlock == null || currentBlock.index == 1) {
-        return true
+fun checkBlocks(currentBlock: Block, previousBlock: Block?): Boolean {
+    if (previousBlock == null) {
+        return currentBlock.index == Configs.GENESIS_BLOCK_INDEX &&
+               currentBlock.previousHash == getGenesisBlockPreviousHash() &&
+               currentBlock.hash == with (currentBlock) { getHash(index, previousHash, data, nonce) }
     }
     return getHash(
         index = currentBlock.index,
@@ -24,6 +26,11 @@ fun checkHash(currentBlock: Block, previousBlock: Block?): Boolean {
 fun getHash(index: Int, previousHash: String, data: String, nonce: Int) =
     "$index$previousHash$data${nonce.toAbsBinary()}".toHash()
 
-fun getInitialHash() = with(Configs) {
+fun getGenesisBlockPreviousHash() = with(Configs) {
     "0".repeat(HASH_LENGTH - HASH_POSTFIX.length) + HASH_POSTFIX
+}
+
+fun List<Block>.checkBlockIndexIsLargest(block: Block): Boolean {
+    val lastBlock = this.lastOrNull() ?: return block.index >= Configs.GENESIS_BLOCK_INDEX
+    return block.index > lastBlock.index
 }
