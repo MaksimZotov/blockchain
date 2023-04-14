@@ -6,4 +6,5 @@ interface NodeService {
     suspend fun start()
     suspend fun onBlockAdded(block: Block)
     suspend fun getBlocks(): List<Block>
+    fun stop()
 }

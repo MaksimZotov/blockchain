@@ -16,10 +16,6 @@ class NodeServiceImpl(
     private val node: Node
 ) : NodeService {
 
-    private companion object {
-        const val INITIAL_INDEX = 0
-    }
-
     private var blocks = mutableListOf<Block>()
 
     private val changeNonceLambda: (Int) -> Int = { nonce ->
@@ -39,8 +35,11 @@ class NodeServiceImpl(
     @Volatile
     private var generationStopped = false
 
+    @Volatile
+    private var isActive = true
+
     override suspend fun start() {
-        while (true) {
+        while (isActive) {
             if (!generationEnabled) {
                 continue
             }
@@ -75,7 +74,7 @@ class NodeServiceImpl(
     }
 
     override suspend fun onBlockAdded(block: Block): Unit = mutex.withLock {
-        val checked = checkHash(
+        val checked = checkBlocks(
             currentBlock = block,
             previousBlock = blocks.lastOrNull()
         )
@@ -96,12 +95,18 @@ class NodeServiceImpl(
         blocks
     }
 
-    private fun generateNextBlock(
+    override fun stop() {
+        isActive = false
+        generationEnabled = false
+        generationStopped = true
+    }
+
+    fun generateNextBlock(
         data: String,
-        previousBlock: Block? = null
+        previousBlock: Block?
     ): Block? {
-        val index = (previousBlock?.index ?: INITIAL_INDEX) + 1
-        val previousHash = previousBlock?.hash ?: getInitialHash()
+        val index = previousBlock?.index?.plus(1) ?: Configs.GENESIS_BLOCK_INDEX
+        val previousHash = previousBlock?.hash ?: getGenesisBlockPreviousHash()
 
         var nonce = changeNonceLambda(previousBlock?.nonce ?: Random.nextInt())
         var hash: String
@@ -140,7 +145,4 @@ class NodeServiceImpl(
         stringBuilder.append("\n")
         application.log.info(stringBuilder.toString())
     }
-
-    private fun List<Block>.checkBlockIndexIsLargest(block: Block) =
-        block.index > (this.lastOrNull()?.index ?: INITIAL_INDEX)
 }

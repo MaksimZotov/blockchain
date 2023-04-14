@@ -1,6 +1,6 @@
 package com.maksimzotov.services.impl
 
-import com.maksimzotov.checkHash
+import com.maksimzotov.checkBlocksHashes
 import com.maksimzotov.models.Block
 import com.maksimzotov.models.NeighbourNode
 import com.maksimzotov.services.ClientService
@@ -50,24 +50,4 @@ class NeighbourNodesServiceImpl(
                     fullAddress = node.fullAddress
                 )
             }
-
-    private fun checkBlocksHashes(blocks: List<Block>): Boolean {
-        var previousBlock: Block? = null
-        var currentBlock: Block
-
-        val iterator = blocks.iterator()
-        while (iterator.hasNext()) {
-            currentBlock = iterator.next()
-            val check = checkHash(
-                currentBlock = currentBlock,
-                previousBlock = previousBlock
-            )
-            if (!check) {
-                return false
-            }
-            previousBlock = currentBlock
-        }
-
-        return true
-    }
 }
