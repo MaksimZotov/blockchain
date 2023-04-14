@@ -232,7 +232,6 @@ class ApplicationTest {
             neighbourNodeService1.notifyAboutAddedBlock(secondBlock)
 
             assert(nodeService1.getBlocks().isEmpty())
-
             assert(nodeService2.getBlocks() == resultList)
             nodeService1.onBlockAdded(secondBlock)
             assert(nodeService1.getBlocks() == resultList)
