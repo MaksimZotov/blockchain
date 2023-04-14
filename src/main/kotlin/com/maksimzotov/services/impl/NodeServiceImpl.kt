@@ -35,8 +35,11 @@ class NodeServiceImpl(
     @Volatile
     private var generationStopped = false
 
+    @Volatile
+    private var isActive = true
+
     override suspend fun start() {
-        while (true) {
+        while (isActive) {
             if (!generationEnabled) {
                 continue
             }
@@ -90,6 +93,12 @@ class NodeServiceImpl(
 
     override suspend fun getBlocks() = mutex.withLock {
         blocks
+    }
+
+    override fun stop() {
+        isActive = false
+        generationEnabled = false
+        generationStopped = true
     }
 
     fun generateNextBlock(

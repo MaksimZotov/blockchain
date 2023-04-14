@@ -23,6 +23,26 @@ fun checkBlocks(currentBlock: Block, previousBlock: Block?): Boolean {
     ) == currentBlock.hash
 }
 
+fun checkBlocksHashes(blocks: List<Block>): Boolean {
+    var previousBlock: Block? = null
+    var currentBlock: Block
+
+    val iterator = blocks.iterator()
+    while (iterator.hasNext()) {
+        currentBlock = iterator.next()
+        val check = checkBlocks(
+            currentBlock = currentBlock,
+            previousBlock = previousBlock
+        )
+        if (!check) {
+            return false
+        }
+        previousBlock = currentBlock
+    }
+
+    return true
+}
+
 fun getHash(index: Int, previousHash: String, data: String, nonce: Int) =
     "$index$previousHash$data${nonce.toAbsBinary()}".toHash()
 

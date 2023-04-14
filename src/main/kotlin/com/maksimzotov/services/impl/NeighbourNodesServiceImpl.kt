@@ -1,6 +1,6 @@
 package com.maksimzotov.services.impl
 
-import com.maksimzotov.checkBlocks
+import com.maksimzotov.checkBlocksHashes
 import com.maksimzotov.models.Block
 import com.maksimzotov.models.NeighbourNode
 import com.maksimzotov.services.ClientService
@@ -27,7 +27,7 @@ class NeighbourNodesServiceImpl(
             blocks = blocks
         )
 
-    fun getCheckedBlocksWithMaxLength(
+    private fun getCheckedBlocksWithMaxLength(
         checkedBlocksInNodes: List<List<Block>>,
         blocks: List<Block>
     ) = checkedBlocksInNodes
@@ -39,35 +39,15 @@ class NeighbourNodesServiceImpl(
             !blocksInNode.isNullOrEmpty()
         } ?: blocks
 
-    fun getCheckedBlocksInNodes(blocksInNodes: List<List<Block>>) =
+    private fun getCheckedBlocksInNodes(blocksInNodes: List<List<Block>>) =
         blocksInNodes
             .filter(::checkBlocksHashes)
 
-    suspend fun getBlocksInNodes() =
+    private suspend fun getBlocksInNodes() =
         neighbourNodes
             .map { node ->
                 clientService.getBlocks(
                     fullAddress = node.fullAddress
                 )
             }
-
-    fun checkBlocksHashes(blocks: List<Block>): Boolean {
-        var previousBlock: Block? = null
-        var currentBlock: Block
-
-        val iterator = blocks.iterator()
-        while (iterator.hasNext()) {
-            currentBlock = iterator.next()
-            val check = checkBlocks(
-                currentBlock = currentBlock,
-                previousBlock = previousBlock
-            )
-            if (!check) {
-                return false
-            }
-            previousBlock = currentBlock
-        }
-
-        return true
-    }
 }
